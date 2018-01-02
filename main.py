@@ -144,9 +144,10 @@ class Otsu(object):
 def run_cmd(cmd):
     # python3 取消了commands 用subprocess 代替
     p = subprocess.Popen([cmd],stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
-    p.stdin.flush()
+    p.communicate()
+    p.wait()
     # 截图 及 上传图片需要耗时  这里每条命令手动加上延时  不然可能图片未上传上去 读取图片失败
-    time.sleep(0.5)
+    # time.sleep(0.5)
 
 
 jump_times = itertools.count(0)
@@ -173,7 +174,7 @@ while True:
             raise KeyboardInterrupt
         else:
             run_cmd('adb shell input swipe 255 255 0 0 {}'.format(holding))
-            time.sleep(3)
+            time.sleep(2)
     except KeyboardInterrupt:
         raise KeyboardInterrupt
     except Exception as e:
