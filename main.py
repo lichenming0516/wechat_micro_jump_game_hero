@@ -3,7 +3,7 @@
 from __future__ import print_function, unicode_literals
 
 import colorsys
-import commands
+import subprocess
 import itertools
 import math
 import time
@@ -15,6 +15,7 @@ from PIL import Image, ImageDraw
 class Otsu(object):
 
     def __init__(self, path, debug=False):
+        print(path)
         self.im = Image.open(path)
 
         self.w, self.h = self.im.size
@@ -51,13 +52,16 @@ class Otsu(object):
 
     def find_hero(self):
         hero_poses = []
-        for y in xrange(self.h / 3, self.h * 2 / 3):
-            for x in xrange(self.w):
+        # python3 取消了xrange 改为range 且参数必须为整数
+        for y in range(int(self.h / 3), int(self.h * 2 / 3)):
+            for x in range(self.w):
                 # is purple
                 if self.pixels[x, y] == (56, 56, 97, 255):
                     hero_poses.append((x, y))
         # calc the avg pos
-        return map(lambda i: sum(i) / len(i), itertools.izip(*hero_poses))
+        # python3 map处理改变  并且取消了 itertools.izip
+        # return map(lambda i: sum(i) / len(i), itertools.izip(*hero_poses))
+        return [sum(i) / len(i) for i in zip(*hero_poses)]
 
     def rgb_to_hsv(self, r, g, b, a=255):
         h, s, v = colorsys.rgb_to_hsv(r / 255., g / 255., b / 255.)
@@ -69,8 +73,8 @@ class Otsu(object):
         return self.rgb_to_hsv(*bg_color)
 
     def erase_background(self, bg_hsv):
-        for y in xrange(self.h / 4, self.h * 2 / 3):
-            for x in xrange(self.w):
+        for y in range(int(self.h / 4), int(self.h * 2 / 3)):
+            for x in range(int(self.w)):
                 h, s, v = self.rgb_to_hsv(*self.pixels[x, y])
                 if self.is_same_color(h, s, v, bg_hsv):
                     self.im.putpixel((x, y), (0, 0, 0))
@@ -97,15 +101,15 @@ class Otsu(object):
         return top_most, lr_most
 
     def find_top_most(self, bg_hsv, from_x, to_x, from_y, to_y, step):
-        for y in xrange(from_y, to_y):
-            for x in xrange(from_x, to_x, step):
+        for y in range(int(from_y),int(to_y)):
+            for x in range(int(from_x),int(to_x), step):
                 h, s, v = self.rgb_to_hsv(*self.pixels[x, y])
                 if not self.is_same_color(h, s, v, bg_hsv):
                     return x, y
 
     def find_lr_most(self, bg_hsv, from_x, to_x, from_y, to_y, step):
-        for x in xrange(from_x, to_x, step):
-            for y in xrange(from_y, to_y):
+        for x in range(int(from_x), int(to_x), step):
+            for y in range(int(from_y), int(to_y)):
                 h, s, v = self.rgb_to_hsv(*self.pixels[x, y])
                 if not self.is_same_color(h, s, v, bg_hsv):
                     return x, y
@@ -125,7 +129,8 @@ class Otsu(object):
             pow(self.center_pos[1] - self.hero_pos[1], 2)
         ))
 
-        length_time = line_length * 1.5
+        # 不同分辨率系数不同 
+        length_time = line_length * 1.4
 
         holding = min(950, max(length_time, 300))
 
@@ -135,8 +140,13 @@ class Otsu(object):
         return int(holding)
 
 
+
 def run_cmd(cmd):
-    return commands.getstatusoutput(cmd)
+    # python3 取消了commands 用subprocess 代替
+    p = subprocess.Popen([cmd],stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
+    p.stdin.flush()
+    # 截图 及 上传图片需要耗时  这里每条命令手动加上延时  不然可能图片未上传上去 读取图片失败
+    time.sleep(0.5)
 
 
 jump_times = itertools.count(0)
@@ -148,10 +158,14 @@ while True:
             fn = 's'
         else:
             fn = str(next(jump_times))
-            run_cmd('adb shell screencap -p /sdcard/s.png')
-            run_cmd('adb pull /sdcard/s.png /tmp/{}.png'.format(fn))
-            run_cmd('cp /tmp/{}.png /tmp/s.png'.format(fn))
+            run_cmd('adb shell screencap -p /sdcard/screenshot.png')
+            # 不同手机图片存放的实际位置不同  建议先手动命令行执行下上面的命令  再到文件管理中找到图片的位置 填入下面的位置
+            # 这里是华为p9的真实存放位置
+            run_cmd('adb pull /storage/emulated/0/screenshot.png /tmp/{}.png'.format(fn))
+            # run_cmd('cp /tmp/{}.png /tmp/s.png'.format(fn))
             print(fn)
+
+        
 
         holding = Otsu('/tmp/{}.png'.format(fn), debug=debug).get_holding()
 
@@ -159,7 +173,7 @@ while True:
             raise KeyboardInterrupt
         else:
             run_cmd('adb shell input swipe 255 255 0 0 {}'.format(holding))
-            time.sleep(2)
+            time.sleep(3)
     except KeyboardInterrupt:
         raise KeyboardInterrupt
     except Exception as e:
